@@ -1,0 +1,120 @@
+direction: down
+
+classes: {
+  endpoint: {
+    shape: rectangle
+    style: {
+      fill: "#f8fafc"
+      stroke: "#94a3b8"
+      stroke-width: 2
+      border-radius: 20
+      shadow: true
+      font-color: "#0f172a"
+    }
+  }
+  gateway: {
+    shape: rectangle
+    style: {
+      fill: "#eff6ff"
+      stroke: "#3b82f6"
+      stroke-width: 2
+      border-radius: 20
+      shadow: true
+      font-color: "#0f172a"
+    }
+  }
+  vision: {
+    shape: rectangle
+    style: {
+      fill: "#fff7ed"
+      stroke: "#f97316"
+      stroke-width: 2
+      border-radius: 20
+      shadow: true
+      font-color: "#0f172a"
+    }
+  }
+  motion: {
+    shape: rectangle
+    style: {
+      fill: "#ecfdf5"
+      stroke: "#10b981"
+      stroke-width: 2
+      border-radius: 20
+      shadow: true
+      font-color: "#0f172a"
+    }
+  }
+  relay: {
+    shape: rectangle
+    style: {
+      fill: "#f5f3ff"
+      stroke: "#8b5cf6"
+      stroke-width: 2
+      border-radius: 20
+      shadow: true
+      font-color: "#0f172a"
+    }
+  }
+}
+
+phone: |md
+  ### 스마트폰 카메라
+
+  480 × 360 JPEG · 30 fps
+  백프레셔로 밀린 프레임 드롭
+| {class: endpoint}
+
+A: |md
+  ### Container A — 웹 · 보안 게이트웨이
+
+  자체서명 TLS 종단 · QR 1:1 세션 매칭
+  WebSocket 릴레이 · 재시도 + 서킷 브레이커
+| {class: gateway}
+
+B: |md
+  ### Container B — 비전 엔진
+
+  MediaPipe HandLandmarker · 21개 관절 좌표
+  세션별 DetectorPool · 스레드풀 오프로딩
+| {class: vision}
+
+C: |md
+  ### Container C — 모션 엔진
+
+  6대 제스처 기하 판별 · 속도 적응형 EMA
+  다수결 디바운스 · 비대칭 무지연 펜-업
+| {class: motion}
+
+R: |md
+  ### Container A — 릴레이 재진입
+
+  스키마 정규화로 좌표 기본값 보장
+| {class: relay}
+
+pc: |md
+  ### PC 브라우저 캔버스
+
+  HTML5 Canvas 실시간 드로잉
+  DRAW · ERASE · ZOOM · PAN · HOVER
+| {class: endpoint}
+
+phone -> A: |md
+  **①**  base64 JPEG  **≈ 7 KB**
+| {style: {stroke: "#3b82f6"; stroke-width: 2; font-size: 15; font-color: "#1e3a8a"}}
+
+A -> B: |md
+  **②**  무거운 픽셀 데이터 전달
+| {style: {stroke: "#f97316"; stroke-width: 2; font-size: 15; font-color: "#9a3412"}}
+
+B -> C: |md
+  **③**  좌표 배열  **≈ 500 B**  ·  14배 압축
+| {style: {stroke: "#10b981"; stroke-width: 2; font-size: 15; font-color: "#065f46"}}
+
+C -> R: |md
+  **④**  제어 명령  action · x · y · delta
+| {style: {stroke: "#8b5cf6"; stroke-width: 2; font-size: 15; font-color: "#5b21b6"}}
+
+R -> pc: |md
+  **⑤**  실시간 드로잉 반영
+| {style: {stroke: "#3b82f6"; stroke-width: 2; font-size: 15; font-color: "#1e3a8a"}}
