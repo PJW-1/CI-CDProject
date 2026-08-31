@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Air Canvas - 모바일 카메라 스트리머</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background: #090d16;
+            color: #f8fafc;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        header {
+            background: #1e293b;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+            z-index: 10;
+        }
+        .title {
+            font-weight: 700;
+            font-size: 16px;
+            color: #38bdf8;
+        }
+        .status-badge {
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: #ef4444;
+            color: white;
+            font-weight: 600;
+        }
+        .status-badge.active {
+            background: #10b981;
+        }
+
+        /* Camera View Area */
+        .video-container {
+            flex: 1;
+            position: relative;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+        canvas#overlay-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        /* Mode Feedback Badge */
+        .feedback-overlay {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(8px);
+            padding: 8px 18px;
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            font-size: 14px;
+            font-weight: 700;
+            color: #38bdf8;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+
+        /* Control Footer */
+        footer {
+            background: #1e293b;
+            padding: 16px;
+            display: flex;
+            justify-content: space-around;
+            border-top: 1px solid #334155;
+            z-index: 10;
+        }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn:active {
+            transform: scale(0.96);
+        }
+
+        /* Guide Card */
+        .guide-sheet {
+            position: absolute;
+            bottom: 80px;
+            left: 16px;
+            right: 16px;
+            background: rgba(30, 41, 59, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 12px 16px;
+            border-radius: 14px;
+            font-size: 12px;
+            line-height: 1.6;
+            color: #cbd5e1;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="title">📱 Air Canvas Controller</div>
+        <div class="status-badge" id="stream-status">연결 중...</div>
+    </header>
+
+    <div class="video-container">
+        <video id="webcam" playsinline autoplay muted></video>
+        <canvas id="overlay-canvas"></canvas>
+        <div class="feedback-overlay" id="feedback-text">🖐️ 손을 카메라에 비춰주세요</div>
+
+        <div class="guide-sheet">
+            <b>손동작 가이드:</b><br>
+            • <b>검지만 폄:</b> 🖊️ 그리기 (선 그리기)<br>
+            • <b>검지 + 중지:</b> 🧹 지우개 모드<br>
+            • <b>엄지-검지 벌리기/오므리기:</b> 🔍 화면 확대 / 축소
+        </div>
+    </div>
+
+    <footer>
+        <button class="btn" id="flip-camera-btn">📷 카메라 전환</button>
+        <button class="btn" id="guide-toggle-btn" style="background: #475569;">가이드 숨기기</button>
+    </footer>
+
+    <canvas id="hidden-canvas" style="display: none;"></canvas>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionId = urlParams.get('session');
+        const statusBadge = document.getElementById('stream-status');
+        const feedbackText = document.getElementById('feedback-text');
+        const video = document.getElementById('webcam');
+        const hiddenCanvas = document.getElementById('hidden-canvas');
+        const hiddenCtx = hiddenCanvas.getContext('2d');
+        const overlayCanvas = document.getElementById('overlay-canvas');
+        const overlayCtx = overlayCanvas.getContext('2d');
+
+        function resizeOverlay() {
+            overlayCanvas.width = video.clientWidth || window.innerWidth;
+            overlayCanvas.height = video.clientHeight || window.innerHeight;
+        }
+        window.addEventListener('resize', resizeOverlay);
+
+        let facingMode = 'user';
+        let ws = null;
+        let streamInterval = null;
+
+        const HAND_CONNECTIONS = [
+            [0, 1], [1, 2], [2, 3], [3, 4],
+            [0, 5], [5, 6], [6, 7], [7, 8],
+            [0, 9], [9, 10], [10, 11], [11, 12],
+            [0, 13], [13, 14], [14, 15], [15, 16],
+            [0, 17], [17, 18], [18, 19], [19, 20],
+            [5, 9], [9, 13], [13, 17], [1, 2], [2, 5], [0, 17]
+        ];
+
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/mobile/${sessionId}`);
+
+        ws.onopen = () => {
+            statusBadge.textContent = "스트리밍 중 🟢";
+            statusBadge.classList.add('active');
+            startCamera();
+        };
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'FEEDBACK') {
+                const action = data.action;
+                if (action === 'DRAW') feedbackText.textContent = '🖊️ 그리기 (PEN)';
+                else if (action === 'ERASE') feedbackText.textContent = '🧹 지우개 (ERASER)';
+                else if (action === 'ZOOM_IN') feedbackText.textContent = '🔍+ 확대 (ZOOM IN)';
+                else if (action === 'ZOOM_OUT') feedbackText.textContent = '🔍- 축소 (ZOOM OUT)';
+                else if (action === 'HOVER') feedbackText.textContent = '🖐️ 대기 중 (HOVER)';
+
+                if (data.landmarks && data.landmarks.length === 21) {
+                    drawMobileSkeleton(data.landmarks);
+                } else {
+                    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                }
+            }
+        };
+
+        function drawMobileSkeleton(landmarks) {
+            overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            const w = overlayCanvas.width;
+            const h = overlayCanvas.height;
+
+            overlayCtx.strokeStyle = '#c026d3';
+            overlayCtx.lineWidth = 2;
+            for (let [i, j] of HAND_CONNECTIONS) {
+                const p1 = landmarks[i];
+                const p2 = landmarks[j];
+                const x1 = (facingMode === 'user' ? (1 - p1.x) : p1.x) * w;
+                const y1 = p1.y * h;
+                const x2 = (facingMode === 'user' ? (1 - p2.x) : p2.x) * w;
+                const y2 = p2.y * h;
+
+                overlayCtx.beginPath();
+                overlayCtx.moveTo(x1, y1);
+                overlayCtx.lineTo(x2, y2);
+                overlayCtx.stroke();
+            }
+
+            const TIPS = [4, 8, 12, 16, 20];
+            for (let idx = 0; idx < landmarks.length; idx++) {
+                const p = landmarks[idx];
+                const px = (facingMode === 'user' ? (1 - p.x) : p.x) * w;
+                const py = p.y * h;
+
+                overlayCtx.beginPath();
+                overlayCtx.arc(px, py, TIPS.includes(idx) ? 5 : 3.5, 0, Math.PI * 2);
+                overlayCtx.fillStyle = TIPS.includes(idx) ? '#ec4899' : '#d946ef';
+                overlayCtx.fill();
+            }
+        }
+
+        ws.onclose = () => {
+            statusBadge.textContent = "연결 끊김 🔴";
+            statusBadge.classList.remove('active');
+            stopStreaming();
+        };
+
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: facingMode,
+                        width: { ideal: 480 },
+                        height: { ideal: 360 },
+                        frameRate: { ideal: 30 }
+                    },
+                    audio: false
+                });
+                video.srcObject = stream;
+                video.onloadedmetadata = () => {
+                    video.play();
+                    resizeOverlay();
+                    startStreaming();
+                };
+            } catch (err) {
+                alert("카메라 권한을 허용해 주세요: " + err.message);
+            }
+        }
+
+        function startStreaming() {
+            hiddenCanvas.width = 480;
+            hiddenCanvas.height = 360;
+
+            if (streamInterval) clearInterval(streamInterval);
+
+            streamInterval = setInterval(() => {
+                if (ws && ws.readyState === WebSocket.OPEN && video.readyState === video.HAVE_ENOUGH_DATA) {
+                    hiddenCtx.drawImage(video, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
+                    const base64Image = hiddenCanvas.toDataURL('image/jpeg', 0.6);
+                    ws.send(base64Image);
+                }
+            }, 33);
+        }
+
+        function stopStreaming() {
+            if (streamInterval) clearInterval(streamInterval);
+        }
+
+        document.getElementById('flip-camera-btn').onclick = async () => {
+            facingMode = facingMode === 'user' ? 'environment' : 'user';
+            video.style.transform = facingMode === 'user' ? 'scaleX(-1)' : 'none';
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+            }
+            await startCamera();
+        };
+
+        const guideSheet = document.querySelector('.guide-sheet');
+        document.getElementById('guide-toggle-btn').onclick = function() {
+            if (guideSheet.style.display === 'none') {
+                guideSheet.style.display = 'block';
+                this.textContent = '가이드 숨기기';
+            } else {
+                guideSheet.style.display = 'none';
+                this.textContent = '가이드 보기';
+            }
+        };
+    </script>
+</body>
+</html>

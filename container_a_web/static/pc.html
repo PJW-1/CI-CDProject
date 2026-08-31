@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Air Canvas - 실시간 원격 그림판 (PC)</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+        body {
+            background: #090d16;
+            color: #f8fafc;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        header {
+            background: rgba(30, 41, 59, 0.85);
+            backdrop-filter: blur(12px);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 30;
+        }
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .logo-title {
+            font-size: 20px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #38bdf8, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .badge {
+            background: #334155;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: #94a3b8;
+        }
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #0f172a;
+            padding: 6px 14px;
+            border-radius: 30px;
+            font-size: 13px;
+            border: 1px solid #334155;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ef4444;
+            transition: background 0.3s;
+        }
+        .status-dot.connected {
+            background: #10b981;
+            box-shadow: 0 0 10px #10b981;
+        }
+        
+        /* Toolbar */
+        .toolbar {
+            position: absolute;
+            top: 75px;
+            left: 24px;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(16px);
+            padding: 14px;
+            border-radius: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            z-index: 20;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+        .tool-btn {
+            background: #334155;
+            border: none;
+            color: white;
+            padding: 10px;
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+        .tool-btn:hover {
+            background: #475569;
+            transform: scale(1.06);
+        }
+        .color-picker {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .color-dot {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: transform 0.2s;
+        }
+        .color-dot.active {
+            border-color: white;
+            transform: scale(1.2);
+            box-shadow: 0 0 10px currentColor;
+        }
+
+        /* Mode Overlay HUD */
+        .hud-mode {
+            position: absolute;
+            top: 75px;
+            right: 24px;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(16px);
+            padding: 12px 22px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            z-index: 20;
+            font-weight: 600;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        }
+        .mode-icon {
+            font-size: 26px;
+        }
+
+        /* Canvas Container with Infinite Dot Grid Background */
+        #canvas-container {
+            flex: 1;
+            position: relative;
+            background-color: #020617;
+            background-image: radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+            background-size: 28px 28px;
+            overflow: hidden;
+        }
+        
+        /* 1. 초대형 무한 드로잉 캔버스 레이어 */
+        canvas#paintCanvas {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            z-index: 1;
+            transform-origin: center center;
+            will-change: transform;
+        }
+
+        /* 2. 전면 손 스켈레톤 AR 오버레이 */
+        canvas#skeletonOverlayCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        /* QR Code Pairing Modal */
+        #qr-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #1e293b;
+            padding: 26px;
+            border-radius: 20px;
+            border: 1px solid #475569;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+            text-align: center;
+            z-index: 100;
+            max-width: 380px;
+            width: 92%;
+        }
+        #qr-modal.hidden {
+            display: none;
+        }
+        #qr-img {
+            width: 190px;
+            height: 190px;
+            margin: 12px auto;
+            border-radius: 12px;
+            background: white;
+            padding: 6px;
+            display: block;
+        }
+        .url-box {
+            background: #0f172a;
+            padding: 8px;
+            border-radius: 8px;
+            font-size: 11px;
+            color: #38bdf8;
+            word-break: break-all;
+            margin: 8px 0;
+            border: 1px solid #334155;
+        }
+        .guide-box {
+            background: #0f172a;
+            padding: 10px 12px;
+            border-radius: 10px;
+            font-size: 12px;
+            color: #94a3b8;
+            line-height: 1.5;
+            text-align: left;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo-area">
+            <div class="logo-title">🖐️ Air Canvas</div>
+            <div class="badge" id="session-badge">Session: Initializing...</div>
+        </div>
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <button class="tool-btn" id="skeleton-toggle-btn" style="padding: 6px 14px; font-size: 13px; background: #8b5cf6;">🖐️ 손 뼈대 보이기</button>
+            <button class="tool-btn" id="qr-toggle-btn" style="padding: 6px 14px; font-size: 13px;">📱 QR 코드 열기</button>
+            <div class="status-pill">
+                <div class="status-dot" id="status-dot"></div>
+                <span id="status-text">모바일 연결 대기 중</span>
+            </div>
+        </div>
+    </header>
+
+    <div id="canvas-container">
+        <!-- 1. 초대형 무한 드로잉 캔버스 (6000x4500px) -->
+        <canvas id="paintCanvas" width="6000" height="4500"></canvas>
+
+        <!-- 2. 실시간 손 스켈레톤 오버레이 -->
+        <canvas id="skeletonOverlayCanvas"></canvas>
+
+        <!-- 툴바 -->
+        <div class="toolbar">
+            <button class="tool-btn" id="clear-btn" title="캔버스 전체 지우기">🗑️</button>
+            <div class="color-picker">
+                <div class="color-dot active" style="background: #38bdf8;" data-color="#38bdf8"></div>
+                <div class="color-dot" style="background: #4ade80;" data-color="#4ade80"></div>
+                <div class="color-dot" style="background: #facc15;" data-color="#facc15"></div>
+                <div class="color-dot" style="background: #f43f5e;" data-color="#f43f5e"></div>
+                <div class="color-dot" style="background: #a855f7;" data-color="#a855f7"></div>
+                <div class="color-dot" style="background: #ffffff;" data-color="#ffffff"></div>
+            </div>
+            <button class="tool-btn" id="zoom-in-btn" title="화면 확대">🔍+</button>
+            <button class="tool-btn" id="zoom-out-btn" title="화면 축소">🔍-</button>
+            <button class="tool-btn" id="view-reset-btn" title="화면 위치 및 줌 리셋" style="font-size: 11px; font-weight: bold; background: #0284c7;">리셋 🎯</button>
+        </div>
+
+        <!-- 실시간 모드 표시 HUD -->
+        <div class="hud-mode">
+            <div class="mode-icon" id="mode-icon">🖐️</div>
+            <div>
+                <div style="font-size: 11px; color: #94a3b8;">CURRENT GESTURE</div>
+                <div id="mode-text" style="font-size: 15px; color: #38bdf8;">대기 중 (HOVER)</div>
+            </div>
+        </div>
+
+        <!-- QR 페어링 모달 -->
+        <div id="qr-modal">
+            <h3 style="color: #f8fafc; font-size: 17px;">📱 스마트폰 카메라 연결</h3>
+            <p style="font-size: 12px; color: #94a3b8; margin-top: 4px;">스마트폰 기본 카메라로 아래 QR을 스캔하세요</p>
+            <img id="qr-img" src="" alt="QR Code">
+            <div class="url-box" id="direct-url">https://...</div>
+            <div class="guide-box">
+                👉 <b>안내:</b> 접속 시 <i>"안전하지 않은 연결"</i> 경고가 뜨면 <b>[고급] ➔ [계속 진행]</b>을 누르시면 즉시 카메라가 켜집니다!
+            </div>
+            <button class="tool-btn" id="close-qr-btn" style="width: 100%; margin-top: 12px; background: #3b82f6;">닫기</button>
+        </div>
+    </div>
+
+    <script>
+        const sessionId = Math.random().toString(36).substring(2, 9);
+        document.getElementById('session-badge').textContent = `Session: #${sessionId}`;
+        
+        const hostIp = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+                       ? '192.168.55.208'
+                       : window.location.hostname;
+
+        const mobileUrl = `https://${hostIp}:8443/mobile?session=${sessionId}`;
+        document.getElementById('qr-img').src = `/api/qr/${sessionId}?host=${hostIp}`;
+        document.getElementById('direct-url').textContent = mobileUrl;
+
+        const qrModal = document.getElementById('qr-modal');
+        document.getElementById('qr-toggle-btn').onclick = () => qrModal.classList.toggle('hidden');
+        document.getElementById('close-qr-btn').onclick = () => qrModal.classList.add('hidden');
+
+        const container = document.getElementById('canvas-container');
+        
+        const paintCanvas = document.getElementById('paintCanvas');
+        const paintCtx = paintCanvas.getContext('2d');
+
+        const skOverlayCanvas = document.getElementById('skeletonOverlayCanvas');
+        const skCtx = skOverlayCanvas.getContext('2d');
+
+        let showSkeleton = true;
+        document.getElementById('skeleton-toggle-btn').onclick = function() {
+            showSkeleton = !showSkeleton;
+            this.textContent = showSkeleton ? '🖐️ 손 뼈대 보이기' : '🖐️ 손 뼈대 숨기기';
+            if (!showSkeleton) {
+                skCtx.clearRect(0, 0, skOverlayCanvas.width, skOverlayCanvas.height);
+            }
+        };
+
+        function resizeOverlayCanvas() {
+            skOverlayCanvas.width = container.clientWidth;
+            skOverlayCanvas.height = container.clientHeight;
+        }
+        window.addEventListener('resize', resizeOverlayCanvas);
+        resizeOverlayCanvas();
+
+        let currentColor = '#38bdf8';
+        let brushSize = 6;
+        let scale = 1.0;
+        let panX = 0, panY = 0;
+        let lastX = null, lastY = null;
+        let lastMidX = null, lastMidY = null;
+        let prevPanRawX = null, prevPanRawY = null;
+
+        document.querySelectorAll('.color-dot').forEach(dot => {
+            dot.onclick = () => {
+                document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+                dot.classList.add('active');
+                currentColor = dot.dataset.color;
+            };
+        });
+
+        document.getElementById('clear-btn').onclick = () => {
+            paintCtx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
+        };
+
+        document.getElementById('zoom-in-btn').onclick = () => applyZoom(0.15);
+        document.getElementById('zoom-out-btn').onclick = () => applyZoom(-0.15);
+        
+        document.getElementById('view-reset-btn').onclick = () => {
+            scale = 1.0;
+            panX = 0;
+            panY = 0;
+            updateCanvasTransform();
+        };
+
+        function updateCanvasTransform() {
+            paintCanvas.style.transform = `translate(calc(-50% + ${panX}px), calc(-50% + ${panY}px)) scale(${scale})`;
+        }
+        updateCanvasTransform();
+
+        function applyZoom(delta) {
+            scale = Math.min(Math.max(0.4, scale + delta), 4.0);
+            updateCanvasTransform();
+        }
+
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/pc/${sessionId}`);
+
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        const modeIcon = document.getElementById('mode-icon');
+        const modeText = document.getElementById('mode-text');
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            if (data.type === 'STATUS') {
+                if (data.mobile_connected) {
+                    statusDot.classList.add('connected');
+                    statusText.textContent = "모바일 연결됨 (스트리밍 중)";
+                    qrModal.classList.add('hidden');
+                } else {
+                    statusDot.classList.remove('connected');
+                    statusText.textContent = "모바일 연결 대기 중";
+                    skCtx.clearRect(0, 0, skOverlayCanvas.width, skOverlayCanvas.height);
+                }
+            }
+            else if (data.type === 'GESTURE') {
+                handleGesture(data);
+
+                if (showSkeleton && data.landmarks && data.landmarks.length === 21) {
+                    renderFullScreenHandSkeleton(data.landmarks, data.action, data.x, data.y);
+                } else {
+                    skCtx.clearRect(0, 0, skOverlayCanvas.width, skOverlayCanvas.height);
+                }
+            }
+        };
+
+        const HAND_CONNECTIONS = [
+            [0, 1], [1, 2], [2, 3], [3, 4],
+            [0, 5], [5, 6], [6, 7], [7, 8],
+            [0, 9], [9, 10], [10, 11], [11, 12],
+            [0, 13], [13, 14], [14, 15], [15, 16],
+            [0, 17], [17, 18], [18, 19], [19, 20],
+            [5, 9], [9, 13], [13, 17], [1, 2], [2, 5], [0, 17]
+        ];
+
+        function renderFullScreenHandSkeleton(landmarks, action, smoothedX, smoothedY) {
+            skCtx.clearRect(0, 0, skOverlayCanvas.width, skOverlayCanvas.height);
+
+            const w = skOverlayCanvas.width;
+            const h = skOverlayCanvas.height;
+
+            const isZoomIn = action === 'ZOOM_IN';
+            const isZoomOut = action === 'ZOOM_OUT';
+            const isPan = action === 'PAN';
+
+            const perfectTipX = (1 - smoothedX) * w;
+            const perfectTipY = smoothedY * h;
+
+            // 1. 뼈대 연결선 그리기
+            skCtx.lineWidth = 3;
+            for (let [i, j] of HAND_CONNECTIONS) {
+                const p1 = landmarks[i];
+                const p2 = landmarks[j];
+
+                let x1 = (1 - p1.x) * w;
+                let y1 = p1.y * h;
+                let x2 = (1 - p2.x) * w;
+                let y2 = p2.y * h;
+
+                if (i === 8 && action === 'DRAW') { x1 = perfectTipX; y1 = perfectTipY; }
+                if (j === 8 && action === 'DRAW') { x2 = perfectTipX; y2 = perfectTipY; }
+
+                const isPalm = (i === 0 || j === 0 || (i >= 5 && j >= 5 && Math.abs(i-j) > 3));
+                
+                if (isPan) {
+                    skCtx.strokeStyle = 'rgba(56, 189, 248, 0.75)';
+                    skCtx.shadowColor = '#38bdf8';
+                } else if (isZoomIn) {
+                    skCtx.strokeStyle = 'rgba(250, 204, 21, 0.8)';
+                    skCtx.shadowColor = '#facc15';
+                } else if (isZoomOut) {
+                    skCtx.strokeStyle = 'rgba(168, 85, 247, 0.8)';
+                    skCtx.shadowColor = '#a855f7';
+                } else {
+                    skCtx.strokeStyle = isPalm ? 'rgba(192, 38, 211, 0.4)' : 'rgba(236, 72, 153, 0.8)';
+                    skCtx.shadowColor = '#d946ef';
+                }
+                skCtx.shadowBlur = 6;
+
+                skCtx.beginPath();
+                skCtx.moveTo(x1, y1);
+                skCtx.lineTo(x2, y2);
+                skCtx.stroke();
+            }
+            skCtx.shadowBlur = 0;
+
+            // 2. 21개 관절 노드
+            const TIPS = [4, 8, 12, 16, 20];
+            for (let idx = 0; idx < landmarks.length; idx++) {
+                const p = landmarks[idx];
+                let px = (1 - p.x) * w;
+                let py = p.y * h;
+
+                if (idx === 8 && action === 'DRAW') {
+                    px = perfectTipX;
+                    py = perfectTipY;
+                }
+
+                const isTip = TIPS.includes(idx);
+                const radius = isTip ? 7 : 4.5;
+
+                skCtx.beginPath();
+                skCtx.arc(px, py, radius, 0, Math.PI * 2);
+
+                if (isPan) {
+                    skCtx.fillStyle = '#38bdf8';
+                    skCtx.shadowColor = '#38bdf8';
+                    skCtx.shadowBlur = 12;
+                } else if (isZoomIn && idx === 4) {
+                    skCtx.fillStyle = '#facc15';
+                    skCtx.shadowColor = '#facc15';
+                    skCtx.shadowBlur = 24;
+                } else if (isZoomOut && idx === 20) {
+                    skCtx.fillStyle = '#a855f7';
+                    skCtx.shadowColor = '#a855f7';
+                    skCtx.shadowBlur = 24;
+                } else if (idx === 8 && action === 'DRAW') {
+                    skCtx.fillStyle = currentColor;
+                    skCtx.shadowColor = currentColor;
+                    skCtx.shadowBlur = 20;
+                    skCtx.fill();
+
+                    skCtx.beginPath();
+                    skCtx.arc(px, py, brushSize + 4, 0, Math.PI * 2);
+                    skCtx.strokeStyle = currentColor;
+                    skCtx.lineWidth = 2;
+                    skCtx.stroke();
+                } else if ((idx === 8 || idx === 12) && action === 'ERASE') {
+                    skCtx.fillStyle = '#f43f5e';
+                    skCtx.shadowColor = '#f43f5e';
+                    skCtx.shadowBlur = 18;
+                } else {
+                    skCtx.fillStyle = isTip ? '#ec4899' : '#d946ef';
+                    skCtx.shadowColor = '#ec4899';
+                    skCtx.shadowBlur = isTip ? 10 : 4;
+                }
+                skCtx.fill();
+                skCtx.shadowBlur = 0;
+            }
+
+            // 3. 주먹 이동 시각화
+            if (isPan) {
+                skCtx.beginPath();
+                skCtx.arc(perfectTipX, perfectTipY, 45, 0, Math.PI * 2);
+                skCtx.strokeStyle = 'rgba(56, 189, 248, 0.9)';
+                skCtx.lineWidth = 3;
+                skCtx.fillStyle = 'rgba(56, 189, 248, 0.2)';
+                skCtx.fill();
+                skCtx.stroke();
+            }
+
+            // 4. 지우개 조준선
+            if (action === 'ERASE') {
+                skCtx.beginPath();
+                skCtx.arc(perfectTipX, perfectTipY, 35, 0, Math.PI * 2);
+                skCtx.strokeStyle = 'rgba(244, 63, 94, 0.9)';
+                skCtx.lineWidth = 2;
+                skCtx.fillStyle = 'rgba(244, 63, 94, 0.15)';
+                skCtx.fill();
+                skCtx.stroke();
+            }
+        }
+
+        function screenToCanvasCoords(screenX, screenY) {
+            const screenW = container.clientWidth;
+            const screenH = container.clientHeight;
+            
+            const canvasCenterX = paintCanvas.width / 2;
+            const canvasCenterY = paintCanvas.height / 2;
+            
+            const canvasX = (screenX - (screenW / 2) - panX) / scale + canvasCenterX;
+            const canvasY = (screenY - (screenH / 2) - panY) / scale + canvasCenterY;
+            return { x: canvasX, y: canvasY };
+        }
+
+        function handleGesture(data) {
+            const { action, x, y, delta } = data;
+            
+            const screenX = (1 - x) * container.clientWidth;
+            const screenY = y * container.clientHeight;
+
+            if (action === 'DRAW') {
+                modeIcon.textContent = '🖊️';
+                modeText.textContent = '그리기 모드 (검지)';
+                modeText.style.color = '#38bdf8';
+
+                const pt = screenToCanvasCoords(screenX, screenY);
+
+                if (lastX !== null && lastY !== null) {
+                    paintCtx.beginPath();
+                    paintCtx.moveTo(lastX, lastY);
+                    paintCtx.lineTo(pt.x, pt.y);
+                    paintCtx.strokeStyle = currentColor;
+                    paintCtx.lineWidth = brushSize / scale;
+                    paintCtx.lineCap = 'round';
+                    paintCtx.lineJoin = 'round';
+                    paintCtx.stroke();
+                } else {
+                    // 첫 점을 찍을 때 즉시 원형 잉크 점 렌더링
+                    paintCtx.beginPath();
+                    paintCtx.arc(pt.x, pt.y, (brushSize / scale) / 2, 0, Math.PI * 2);
+                    paintCtx.fillStyle = currentColor;
+                    paintCtx.fill();
+                }
+                lastX = pt.x;
+                lastY = pt.y;
+            } else {
+                // 손을 펴거나 다른 제스처일 때는 즉시 펜을 뗌
+                lastX = null;
+                lastY = null;
+            }
+
+            if (action === 'PAN') {
+                modeIcon.textContent = '✊';
+                modeText.textContent = '화면 이동 중 (주먹 드래그)';
+                modeText.style.color = '#38bdf8';
+
+                if (prevPanRawX !== null && prevPanRawY !== null) {
+                    const dx = (x - prevPanRawX) * container.clientWidth * 1.5;
+                    const dy = (y - prevPanRawY) * container.clientHeight * 1.5;
+                    panX += dx;
+                    panY += dy;
+                    updateCanvasTransform();
+                }
+                prevPanRawX = x;
+                prevPanRawY = y;
+            } else {
+                prevPanRawX = null;
+                prevPanRawY = null;
+            }
+
+            if (action === 'ERASE') {
+                modeIcon.textContent = '🧹';
+                modeText.textContent = '지우개 모드 (검지+중지)';
+                modeText.style.color = '#f43f5e';
+
+                const pt = screenToCanvasCoords(screenX, screenY);
+                paintCtx.save();
+                paintCtx.globalCompositeOperation = 'destination-out';
+                paintCtx.beginPath();
+                paintCtx.arc(pt.x, pt.y, 35 / scale, 0, Math.PI * 2);
+                paintCtx.fill();
+                paintCtx.restore();
+            }
+            else if (action === 'ZOOM_IN') {
+                modeIcon.textContent = '👍';
+                modeText.textContent = `천천히 확대 중 (${Math.round(scale * 100)}%)`;
+                modeText.style.color = '#facc15';
+                applyZoom(delta);
+            }
+            else if (action === 'ZOOM_OUT') {
+                modeIcon.textContent = '🤙';
+                modeText.textContent = `천천히 축소 중 (${Math.round(scale * 100)}%)`;
+                modeText.style.color = '#a855f7';
+                applyZoom(delta);
+            }
+            else if (action !== 'PAN' && action !== 'DRAW') {
+                modeIcon.textContent = '🖐️';
+                modeText.textContent = '대기 모드 (이동)';
+                modeText.style.color = '#94a3b8';
+            }
+        }
+    </script>
+</body>
+</html>

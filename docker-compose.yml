@@ -1,0 +1,43 @@
+services:
+  container_a:
+    build:
+      context: ./container_a_web
+      dockerfile: Dockerfile
+    container_name: air-canvas-web
+    restart: unless-stopped
+    ports:
+      - "8443:8443"
+    environment:
+      - CONTAINER_B_URL=http://container_b:8001/analyze
+      - HOST_IP=192.168.55.208
+    depends_on:
+      - container_b
+      - container_c
+    networks:
+      - air-canvas-net
+
+  container_b:
+    build:
+      context: ./container_b_vision
+      dockerfile: Dockerfile
+    container_name: air-canvas-vision
+    restart: unless-stopped
+    environment:
+      - CONTAINER_C_URL=http://container_c:8002/gesture
+    depends_on:
+      - container_c
+    networks:
+      - air-canvas-net
+
+  container_c:
+    build:
+      context: ./container_c_gesture
+      dockerfile: Dockerfile
+    container_name: air-canvas-gesture
+    restart: unless-stopped
+    networks:
+      - air-canvas-net
+
+networks:
+  air-canvas-net:
+    driver: bridge
