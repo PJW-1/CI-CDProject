@@ -1,0 +1,85 @@
+# Air Canvas 공통 설정 (Pillar 1: 파라미터화)
+#
+# 이 파일이 모든 튜닝 값의 단일 출처다. 코드에는 상수를 두지 않는다.
+#
+# 우선순위:  default.yaml  <  {APP_ENV}.yaml  <  환경변수
+#
+# 환경변수로 덮어쓰는 방법
+#   1) 중첩 경로 지정: AIRCANVAS__GESTURE__EMA__ALPHA_FAST=0.9
+#   2) 레거시 별칭   : HOST_IP, CONTAINER_B_URL, CONTAINER_C_URL, LOG_LEVEL ...
+#
+# ⚠️ 아래 기본값은 고도화 이전 코드에 하드코딩되어 있던 값과 정확히 동일하다.
+#    값이 바뀌면 베이스라인 동작이 깨진다. 튜닝은 dev.yaml/prod.yaml에서 한다.
+
+network:
+  # auto 로 두면 런타임에 LAN IP를 탐지한다.
+  # 고도화 이전에는 "192.168.55.208" 이 코드 3곳에 하드코딩되어 있었고,
+  # 다른 네트워크로 옮기면 QR이 즉시 죽는 구조였다.
+  host_ip: auto
+  fallback_host_ip: 127.0.0.1
+  web_port: 8443
+  vision_port: 8001
+  gesture_port: 8002
+  vision_url: ""    # 비우면 vision_port 기준으로 조립
+  gesture_url: ""
+
+http:
+  # 고도화 이전 값: A=0.2s, B=0.3s. 실제 추론 지연을 감안하면 비현실적으로 짧았다.
+  connect_timeout_s: 1.0
+  read_timeout_s: 1.5
+  retry:
+    max_attempts: 2          # 30fps 파이프라인에서 과도한 재시도는 오히려 지연을 누적시킨다
+    backoff_base_s: 0.05
+  circuit_breaker:
+    failure_threshold: 10    # 연속 실패 N회 시 open
+    recovery_timeout_s: 5.0  # open 유지 시간. 이후 half-open으로 탐침
+
+stream:
+  # 프론트엔드가 /api/config 로 받아가는 값. 고도화 이전에는 mobile.html에 고정이었다.
+  width: 480
+  height: 360
+  jpeg_quality: 0.6
+  interval_ms: 33            # ≈30fps
+  max_inflight_frames: 2     # 백프레셔. 응답 못 받은 프레임이 이 수를 넘으면 전송을 건너뛴다
+
+vision:
+  model_filename: hand_landmarker.task
+  model_url: https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task
+  num_hands: 1
+  min_hand_detection_confidence: 0.6
+  min_hand_presence_confidence: 0.5
+  min_tracking_confidence: 0.5
+  download_timeout_s: 30
+  download_retries: 3
+  max_frame_bytes: 2097152   # 2MB. 이보다 큰 프레임은 거부한다
+  detector_pool_size: 8      # 세션별 detector 격리 (VIDEO 모드 상태 오염 방지)
+  detector_idle_ttl_s: 120   # 유휴 세션 detector 회수
+
+gesture:
+  thresholds:
+    thumb_open_palm_dist: 0.15
+    thumb_open_index_base_dist: 0.12
+    thumb_folded_dist: 0.13
+    erase_height_diff: 0.12
+  zoom:
+    step: 0.008
+  ema:
+    deadzone_dist: 0.001
+    slow_dist: 0.05
+    alpha_micro: 0.35        # 초미세 진동 구간
+    alpha_precise: 0.50      # 정밀 드로잉 구간
+    alpha_fast: 0.85         # 빠른 이동 구간
+  debounce:
+    window: 3
+    majority: 2
+    instant_pen_up: true     # 비대칭 무지연 펜-업 컷오프(삐침 방지). 의도된 설계이므로 기본 활성
+  session:
+    ttl_s: 600
+
+logging:
+  level: INFO
+  format: json               # json | text
+  dir: ""                    # 비우면 stdout 전용
+  max_bytes: 10485760
+  backup_count: 5
+  frame_sample_rate: 30

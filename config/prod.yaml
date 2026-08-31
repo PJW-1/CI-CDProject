@@ -1,0 +1,13 @@
+# 운영 환경 오버라이드 (APP_ENV=prod)
+logging:
+  level: INFO
+  format: json
+  dir: /logs            # 파일 회전 활성화
+  frame_sample_rate: 30
+
+http:
+  connect_timeout_s: 1.0
+  read_timeout_s: 1.5
+
+vision:
+  detector_pool_size: 16
