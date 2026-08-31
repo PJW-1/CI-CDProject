@@ -1,40 +1,94 @@
+# Air Canvas — 프로덕션 레벨 구성
+#
+# 고도화 이전 대비 변경점
+#   - 빌드 컨텍스트를 루트로 올려 common/, config/ 공용 모듈을 3개 컨테이너가 공유
+#   - HOST_IP 하드코딩(192.168.55.208) 제거 → 런타임 LAN IP 자동 탐지
+#   - CONTAINER_B_URL / CONTAINER_C_URL 제거 → config/default.yaml 에서 조립
+#   - LOG_* 환경변수 나열 제거 → config/prod.yaml 이 담당
+#   - healthcheck 추가 → depends_on 이 "프로세스 시작"이 아니라 "준비 완료"를 기다림
+#   - 로그/인증서/모델 볼륨 → 컨테이너를 새로 만들어도 유실되지 않음
+#
+# 설정을 바꾸려면 config/*.yaml 을 고치거나 아래 형태로 주입한다.
+#   AIRCANVAS__GESTURE__EMA__ALPHA_FAST=0.9
+
+x-common-env: &common-env
+  APP_ENV: prod
+  PYTHONUNBUFFERED: "1"
+  # 호스트 LAN IP는 컨테이너 안에서 알 수 없으므로 호스트에서 주입한다.
+  # scripts/compose_up.py 가 탐지해서 넣어준다. 비어 있으면 Host 헤더로 대체된다.
+  # 소스코드에는 IP 리터럴이 하나도 없다는 점이 핵심이다.
+  HOST_IP: ${HOST_IP:-}
+
 services:
   container_a:
     build:
-      context: ./container_a_web
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: container_a_web/Dockerfile
     container_name: air-canvas-web
     restart: unless-stopped
     ports:
       - "8443:8443"
     environment:
-      - CONTAINER_B_URL=http://container_b:8001/analyze
-      - HOST_IP=192.168.55.208
+      <<: *common-env
+    volumes:
+      - ./logs:/logs
+      # 인증서 영속화. 이전에는 컨테이너 재생성마다 새로 발급되어
+      # 폰에서 매번 보안 경고를 다시 승인해야 했다.
+      - ./certs:/certs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,ssl; ctx=ssl._create_unverified_context(); urllib.request.urlopen('https://127.0.0.1:8443/health', context=ctx, timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     depends_on:
-      - container_b
-      - container_c
+      container_b:
+        condition: service_healthy
+      container_c:
+        condition: service_healthy
     networks:
       - air-canvas-net
 
   container_b:
     build:
-      context: ./container_b_vision
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: container_b_vision/Dockerfile
     container_name: air-canvas-vision
     restart: unless-stopped
     environment:
-      - CONTAINER_C_URL=http://container_c:8002/gesture
+      <<: *common-env
+    volumes:
+      - ./logs:/logs
+      # 모델 캐시. 컨테이너를 새로 만들 때마다 7.8MB를 다시 받지 않는다.
+      - ./models:/app/models
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s        # MediaPipe 모델 로드 시간을 감안
     depends_on:
-      - container_c
+      container_c:
+        condition: service_healthy
     networks:
       - air-canvas-net
 
   container_c:
     build:
-      context: ./container_c_gesture
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: container_c_gesture/Dockerfile
     container_name: air-canvas-gesture
     restart: unless-stopped
+    environment:
+      <<: *common-env
+    volumes:
+      - ./logs:/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - air-canvas-net
 

@@ -43,11 +43,20 @@ print(f" - PC 접속 주소: https://localhost:8443 또는 https://{local_ip}:84
 print("="*65)
 
 # 환경 변수 설정
-env_a = os.environ.copy()
-env_a["CONTAINER_B_URL"] = "http://127.0.0.1:8001/analyze"
+# 각 서비스는 자기 디렉터리를 cwd로 실행되므로, 공용 모듈(common/)을 찾으려면
+# 저장소 루트를 PYTHONPATH에 넣어야 한다. (컨테이너에서는 Dockerfile이 COPY로 해결)
+def _service_env(**overrides) -> dict:
+    env = os.environ.copy()
+    existing = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = BASE_DIR + (os.pathsep + existing if existing else "")
+    env.setdefault("LOG_FORMAT", "text")          # 로컬은 사람이 읽기 쉬운 포맷
+    env.setdefault("LOG_DIR", os.path.join(BASE_DIR, "logs"))
+    env.update(overrides)
+    return env
 
-env_b = os.environ.copy()
-env_b["CONTAINER_C_URL"] = "http://127.0.0.1:8002/gesture"
+env_a = _service_env(CONTAINER_B_URL="http://127.0.0.1:8001/analyze")
+env_b = _service_env(CONTAINER_C_URL="http://127.0.0.1:8002/gesture")
+env_c = _service_env()
 
 procs = []
 
@@ -56,7 +65,8 @@ try:
     print("[*] Container C (동작 판별 엔진 - 포트 8002) 시작...")
     p_c = subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8002"],
-        cwd=os.path.join(BASE_DIR, "container_c_gesture")
+        cwd=os.path.join(BASE_DIR, "container_c_gesture"),
+        env=env_c
     )
     procs.append(p_c)
 

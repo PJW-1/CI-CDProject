@@ -192,12 +192,14 @@
         ws.onopen = () => {
             statusBadge.textContent = "스트리밍 중 🟢";
             statusBadge.classList.add('active');
-            startCamera();
+            loadStreamConfig().then(startCamera);
         };
 
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             if (data.type === 'FEEDBACK') {
+                // 백프레셔 해제: 서버가 이 프레임을 처리했으므로 다음 프레임 전송을 허용한다.
+                if (inflight > 0) inflight--;
                 const action = data.action;
                 if (action === 'DRAW') feedbackText.textContent = '🖊️ 그리기 (PEN)';
                 else if (action === 'ERASE') feedbackText.textContent = '🧹 지우개 (ERASER)';
@@ -275,19 +277,48 @@
             }
         }
 
+        // Pillar 1: 해상도/품질/전송주기를 서버 설정(/api/config)에서 받아온다.
+        // Pillar 3: 서버 응답을 기다리지 않고 33ms마다 무조건 쏘던 구조에 백프레셔를 추가한다.
+        let streamCfg = { width: 480, height: 360, jpeg_quality: 0.6, interval_ms: 33, max_inflight_frames: 2 };
+        let inflight = 0;
+        let droppedFrames = 0;
+
+        async function loadStreamConfig() {
+            try {
+                const res = await fetch('/api/config');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.stream) streamCfg = Object.assign(streamCfg, data.stream);
+                }
+            } catch (e) {
+                console.warn('[config] /api/config 조회 실패, 기본값을 사용합니다', e);
+            }
+        }
+
         function startStreaming() {
-            hiddenCanvas.width = 480;
-            hiddenCanvas.height = 360;
+            hiddenCanvas.width = streamCfg.width;
+            hiddenCanvas.height = streamCfg.height;
 
             if (streamInterval) clearInterval(streamInterval);
+            inflight = 0;
+            droppedFrames = 0;
 
             streamInterval = setInterval(() => {
-                if (ws && ws.readyState === WebSocket.OPEN && video.readyState === video.HAVE_ENOUGH_DATA) {
-                    hiddenCtx.drawImage(video, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
-                    const base64Image = hiddenCanvas.toDataURL('image/jpeg', 0.6);
-                    ws.send(base64Image);
+                if (!(ws && ws.readyState === WebSocket.OPEN && video.readyState === video.HAVE_ENOUGH_DATA)) return;
+
+                // 백프레셔: 응답을 못 받은 프레임이 쌓이면 이번 프레임은 버린다.
+                // 그냥 계속 밀어넣으면 송신 버퍼에 적체되어 지연이 누적되고 실시간성이 무너진다.
+                // 드로잉은 "밀린 과거 프레임"보다 "최신 위치"가 중요하므로 드롭이 옳다.
+                if (inflight >= streamCfg.max_inflight_frames || ws.bufferedAmount > 512 * 1024) {
+                    droppedFrames++;
+                    return;
                 }
-            }, 33);
+
+                hiddenCtx.drawImage(video, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
+                const base64Image = hiddenCanvas.toDataURL('image/jpeg', streamCfg.jpeg_quality);
+                inflight++;
+                ws.send(base64Image);
+            }, streamCfg.interval_ms);
         }
 
         function stopStreaming() {

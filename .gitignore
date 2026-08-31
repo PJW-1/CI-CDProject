@@ -1,0 +1,12 @@
+# 런타임 산출물 — 저장소에 담지 않는다
+logs/
+certs/
+# MediaPipe 모델(7.8MB)은 최초 기동 시 자동 다운로드. CI는 캐시를 사용한다.
+models/
+
+# 파이썬
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/

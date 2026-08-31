@@ -1,0 +1,8 @@
+# 개발 환경 오버라이드 (APP_ENV=dev)
+logging:
+  level: DEBUG
+  format: text          # 로컬에서는 사람이 읽기 쉬운 포맷
+  frame_sample_rate: 60 # 로컬은 로그를 더 드물게
+
+http:
+  read_timeout_s: 3.0   # 디버거 붙였을 때 타임아웃으로 끊기지 않도록 여유
