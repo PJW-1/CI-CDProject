@@ -25,7 +25,7 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 
@@ -39,7 +39,7 @@ class CircuitState:
     failure_threshold: int
     recovery_timeout_s: float
     consecutive_failures: int = 0
-    opened_at: Optional[float] = None
+    opened_at: float | None = None
     half_open_in_flight: bool = False
 
     @property
@@ -62,7 +62,7 @@ class CircuitState:
         self.half_open_in_flight = True
         return True
 
-    def record_success(self) -> Optional[str]:
+    def record_success(self) -> str | None:
         """성공 기록. 서킷이 닫혔다면 'closed' 를 반환한다(로깅용)."""
         was_open = self.opened_at is not None
         self.consecutive_failures = 0
@@ -70,7 +70,7 @@ class CircuitState:
         self.half_open_in_flight = False
         return "closed" if was_open else None
 
-    def record_failure(self) -> Optional[str]:
+    def record_failure(self) -> str | None:
         """실패 기록. 서킷이 새로 열렸다면 'opened' 를 반환한다(로깅용)."""
         self.half_open_in_flight = False
         self.consecutive_failures += 1
@@ -129,10 +129,10 @@ class ResilientClient:
         url: str,
         payload: dict,
         *,
-        session_id: Optional[str] = None,
-        trace_id: Optional[str] = None,
-        budget_s: Optional[float] = None,
-    ) -> "CallResult":
+        session_id: str | None = None,
+        trace_id: str | None = None,
+        budget_s: float | None = None,
+    ) -> CallResult:
         if not self._circuit.allow():
             return CallResult(ok=False, reason="CIRCUIT_OPEN", attempts=0)
 
@@ -201,7 +201,7 @@ class ResilientClient:
 @dataclass
 class CallResult:
     ok: bool
-    data: Optional[dict] = None
+    data: dict | None = None
     reason: str = ""
-    detail: Optional[dict] = None
+    detail: dict | None = None
     attempts: int = 0

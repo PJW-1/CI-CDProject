@@ -8,23 +8,22 @@ import binascii
 import logging
 import os
 import urllib.request
-
-import cv2
-import numpy as np
-import mediapipe as mp
 from contextlib import asynccontextmanager
 
+import cv2
+import mediapipe as mp
+import numpy as np
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
-from starlette.concurrency import run_in_threadpool
-from pydantic import BaseModel
 from mediapipe.tasks import python as mp_tasks
 from mediapipe.tasks.python import vision as mp_vision
+from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
-from common.config import load_config, config_meta
+from common.config import config_meta, load_config
 from common.detector_pool import DetectorPool
 from common.http_client import ResilientClient
-from common.logging_setup import setup_logging, Timer
+from common.logging_setup import Timer, setup_logging
 from common.schemas import AnalyzeResponse, GestureResult, HealthState
 
 CONTAINER = "B"

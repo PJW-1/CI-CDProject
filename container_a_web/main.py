@@ -1,15 +1,16 @@
+import io
 import logging
 import os
-import io
-import qrcode
+
 import httpx
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
-from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
+import qrcode
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from common.config import load_config, config_meta
+from common.config import config_meta, load_config
 from common.http_client import ResilientClient
-from common.logging_setup import setup_logging, Timer
+from common.logging_setup import Timer, setup_logging
 from common.schemas import GestureResult, HealthState
 
 # ---- 설정 (Pillar 1) + 공통 구조화 로깅 (Pillar 4) ----
@@ -124,12 +125,12 @@ def get_server_ip(request: Request, client_override: str = None):
 
 @app.get("/", response_class=HTMLResponse)
 async def get_pc_page():
-    with open(os.path.join(static_dir, "pc.html"), "r", encoding="utf-8") as f:
+    with open(os.path.join(static_dir, "pc.html"), encoding="utf-8") as f:
         return f.read()
 
 @app.get("/mobile", response_class=HTMLResponse)
 async def get_mobile_page():
-    with open(os.path.join(static_dir, "mobile.html"), "r", encoding="utf-8") as f:
+    with open(os.path.join(static_dir, "mobile.html"), encoding="utf-8") as f:
         return f.read()
 
 @app.get("/api/info")

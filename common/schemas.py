@@ -18,7 +18,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -41,11 +41,11 @@ class GestureResult(BaseModel):
     detected: bool = False
 
     @classmethod
-    def neutral(cls, session_id: str = "", action: str = "NONE") -> "GestureResult":
+    def neutral(cls, session_id: str = "", action: str = "NONE") -> GestureResult:
         return cls(session_id=session_id, action=action)
 
     @classmethod
-    def from_upstream(cls, raw: Optional[Dict[str, Any]], session_id: str = "") -> "GestureResult":
+    def from_upstream(cls, raw: dict[str, Any] | None, session_id: str = "") -> GestureResult:
         """
         상류 응답을 안전하게 정규화한다.
         키 누락, None, 타입 불일치를 전부 흡수해 항상 유효한 결과를 만든다.
@@ -93,17 +93,17 @@ class AnalyzeResponse(BaseModel):
     pan_dx: float = 0.0
     pan_dy: float = 0.0
     detected: bool = False
-    landmarks: List[Dict[str, float]] = Field(default_factory=list)
+    landmarks: list[dict[str, float]] = Field(default_factory=list)
     health: str = HealthState.OK
-    error: Optional[str] = None
+    error: str | None = None
 
     @classmethod
     def from_gesture(
         cls,
         gesture: GestureResult,
-        landmarks: List[Dict[str, float]],
+        landmarks: list[dict[str, float]],
         health: str = HealthState.OK,
-    ) -> "AnalyzeResponse":
+    ) -> AnalyzeResponse:
         return cls(
             success=True,
             action=gesture.action,
@@ -121,9 +121,9 @@ class AnalyzeResponse(BaseModel):
     def degraded(
         cls,
         reason: str,
-        landmarks: Optional[List[Dict[str, float]]] = None,
+        landmarks: list[dict[str, float]] | None = None,
         health: str = HealthState.DEGRADED,
-    ) -> "AnalyzeResponse":
+    ) -> AnalyzeResponse:
         """
         상류(C)가 죽어도 A에게 유효한 응답을 돌려준다.
         landmarks 가 있으면 PC는 최소한 손 스켈레톤과 커서를 계속 그릴 수 있다.

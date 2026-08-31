@@ -1,8 +1,9 @@
 import os
-import sys
-import subprocess
-import time
 import socket
+import subprocess
+import sys
+import time
+
 
 def get_local_ip():
     try:
@@ -37,7 +38,7 @@ if not os.path.exists(cert_file) or not os.path.exists(key_file):
 
 local_ip = get_local_ip()
 print("="*65)
-print(f" [🖐️ Air Canvas 로컬 마이크로서비스 3개 구동 시작]")
+print(" [🖐️ Air Canvas 로컬 마이크로서비스 3개 구동 시작]")
 print(f" - 내 컴퓨터 로컬 IP: {local_ip}")
 print(f" - PC 접속 주소: https://localhost:8443 또는 https://{local_ip}:8443")
 print("="*65)
@@ -95,7 +96,7 @@ try:
     procs.append(p_a)
 
     print("\n[+] 3개 마이크로서비스가 모두 성공적으로 실행되었습니다!")
-    print(f"👉 브라우저를 열고 https://localhost:8443 에 접속하세요.")
+    print("👉 브라우저를 열고 https://localhost:8443 에 접속하세요.")
     print("👉 종료하려면 터미널에서 Ctrl + C 를 누르세요.\n")
 
     while True:

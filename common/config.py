@@ -30,7 +30,8 @@ from __future__ import annotations
 
 import os
 import socket
-from typing import Any, Iterator, Mapping, Optional
+from collections.abc import Iterator, Mapping
+from typing import Any
 
 import yaml
 
@@ -161,7 +162,7 @@ def _load_yaml(path: str, *, required: bool) -> dict:
             raise ConfigError(f"설정 파일을 찾을 수 없습니다: {path}")
         return {}
     try:
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             data = yaml.safe_load(fh) or {}
     except yaml.YAMLError as exc:
         raise ConfigError(f"설정 파일 파싱 실패 ({path}): {exc}") from exc
@@ -213,7 +214,7 @@ def _resolve_derived(data: dict) -> None:
         vision["model_path"] = os.path.join("models", vision.get("model_filename", "hand_landmarker.task"))
 
 
-_cache: Optional[Config] = None
+_cache: Config | None = None
 _cache_meta: dict = {}
 
 

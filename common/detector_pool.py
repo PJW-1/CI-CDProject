@@ -37,7 +37,8 @@ from __future__ import annotations
 import threading
 import time
 from collections import OrderedDict
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 
 class _Entry:
@@ -66,13 +67,13 @@ class DetectorPool:
         *,
         max_size: int,
         idle_ttl_s: float,
-        log: Optional[Any] = None,
+        log: Any | None = None,
     ):
         self._factory = factory
         self._max_size = max(1, int(max_size))
         self._idle_ttl_s = float(idle_ttl_s)
         self._log = log
-        self._entries: "OrderedDict[str, _Entry]" = OrderedDict()
+        self._entries: OrderedDict[str, _Entry] = OrderedDict()
         self._guard = threading.Lock()
         self._created = 0
         self._evicted = 0
@@ -137,7 +138,7 @@ class DetectorPool:
             return entry
 
     # -- 공개 API -----------------------------------------------------------
-    def acquire(self, session_id: str) -> "_AcquiredDetector":
+    def acquire(self, session_id: str) -> _AcquiredDetector:
         return _AcquiredDetector(self._get_entry(session_id))
 
     def release(self, session_id: str) -> None:

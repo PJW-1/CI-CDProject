@@ -383,8 +383,17 @@ def test_all_containers_use_shared_logger():
         source = open(
             os.path.join(REPO_ROOT, directory, "main.py"), encoding="utf-8"
         ).read()
-        assert "from common.logging_setup import setup_logging" in source, directory
-        assert "setup_logging(" in source, directory
+        # import 순서/형태에 의존하지 않도록 AST로 검사한다.
+        # (문자열 완전일치는 isort가 순서를 바꾸는 순간 깨진다)
+        tree = ast.parse(source)
+        imports_logger = any(
+            isinstance(node, ast.ImportFrom)
+            and node.module == "common.logging_setup"
+            and any(alias.name == "setup_logging" for alias in node.names)
+            for node in ast.walk(tree)
+        )
+        assert imports_logger, f"{directory}: 공통 로거를 import 하지 않는다"
+        assert "setup_logging(" in source, f"{directory}: 로거를 초기화하지 않는다"
 
 
 def test_log_level_actually_filters(capsys):

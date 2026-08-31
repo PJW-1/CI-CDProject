@@ -1,12 +1,12 @@
+import json
 import math
 import time
-import json
 from collections import deque
-from typing import Dict, List, Optional, Union
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
-from common.config import load_config, config_meta
+from common.config import config_meta, load_config
 from common.logging_setup import setup_logging
 
 app = FastAPI(
@@ -64,24 +64,24 @@ class LandmarkItem(BaseModel):
 
 class LandmarkPayload(BaseModel):
     session_id: str
-    landmarks: List[Union[LandmarkItem, List[float], Dict[str, float]]]
+    landmarks: list[LandmarkItem | list[float] | dict[str, float]]
 
 # ==========================================================
 # 🌟 세션별 상태 관리 클래스 (EMA + 3프레임 디바운스)
 # ==========================================================
 class SessionState:
     def __init__(self):
-        self.smooth_x: Optional[float] = None
-        self.smooth_y: Optional[float] = None
+        self.smooth_x: float | None = None
+        self.smooth_y: float | None = None
         
-        self.prev_pan_x: Optional[float] = None
-        self.prev_pan_y: Optional[float] = None
+        self.prev_pan_x: float | None = None
+        self.prev_pan_y: float | None = None
         
         self.action_queue: deque = deque(maxlen=DEBOUNCE_WINDOW)
         self.current_stable_action: str = "HOVER"
         self.last_updated: float = time.time()
 
-sessions: Dict[str, SessionState] = {}
+sessions: dict[str, SessionState] = {}
 
 def get_or_create_session(session_id: str) -> SessionState:
     now = time.time()
@@ -108,7 +108,7 @@ class Point:
         self.y = y
         self.z = z
 
-def parse_landmarks(raw_landmarks: list) -> List[Point]:
+def parse_landmarks(raw_landmarks: list) -> list[Point]:
     """2차원 리스트 [[x, y], ...] 또는 딕셔너리 [{'x':x, 'y':y}, ...]를 Point 객체 배열로 변환"""
     points = []
     for item in raw_landmarks:

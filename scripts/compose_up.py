@@ -56,7 +56,7 @@ def main() -> int:
             print("    폰에서 QR로 접속하려면 --ip 로 직접 지정하세요.")
         else:
             print(f"[+] 호스트 LAN IP 탐지: {host_ip}")
-            print(f"    PC 접속 : https://localhost:8443")
+            print("    PC 접속 : https://localhost:8443")
             print(f"    폰 접속 : https://{host_ip}:8443")
 
         cmd = ["docker", "compose", "up", "-d"]

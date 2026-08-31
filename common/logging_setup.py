@@ -41,7 +41,7 @@ import threading
 import time
 import traceback as _traceback
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # 환경변수 기본값
@@ -199,8 +199,8 @@ class StructuredLogger:
         self,
         level: int,
         event: str,
-        session_id: Optional[str],
-        trace_id: Optional[str],
+        session_id: str | None,
+        trace_id: str | None,
         exc_info: Any,
         fields: dict[str, Any],
     ) -> None:
@@ -292,7 +292,7 @@ _setup_lock = threading.Lock()
 def setup_logging(
     container: str,
     *,
-    settings: Optional[Any] = None,
+    settings: Any | None = None,
     force: bool = False,
 ) -> StructuredLogger:
     """
@@ -353,7 +353,7 @@ def setup_logging(
 
         # 파일 — 컨테이너 재시작 후에도 남는 사후 분석용
         log_dir = _opt("dir", "LOG_DIR").strip()
-        file_error: Optional[str] = None
+        file_error: str | None = None
         if log_dir:
             try:
                 os.makedirs(log_dir, exist_ok=True)
@@ -407,7 +407,7 @@ class Timer:
 
     __slots__ = ("_start", "ms")
 
-    def __enter__(self) -> "Timer":
+    def __enter__(self) -> Timer:
         self._start = time.perf_counter()
         self.ms = 0.0
         return self
