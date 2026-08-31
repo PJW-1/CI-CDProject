@@ -421,7 +421,7 @@ air-canvas-system/
 |---|---|
 | [`docs/BEFORE_AFTER_REPORT.md`](docs/BEFORE_AFTER_REPORT.md) | 수정 전/후 실측 비교 보고서 (754줄) |
 | [`docs/PRODUCTION_REFINING_PLAN.md`](docs/PRODUCTION_REFINING_PLAN.md) | 진단 26건 + 실행 계획 (1,180줄) |
-| [`docs/발표자료.md`](docs/발표자료.md) | 슬라이드별 발표 대본 (화면 구성 + 스크립트) |
+| [`docs/PRESENTATION.md`](docs/PRESENTATION.md) | 슬라이드별 발표 대본 (화면 구성 + 스크립트) |
 
 ---
 
